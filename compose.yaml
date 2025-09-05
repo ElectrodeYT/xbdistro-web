@@ -1,0 +1,38 @@
+services:
+  xbdistro:
+    build: .
+    ports:
+      - "8000:8000"  # Backend
+      - "8001:8001"  # Frontend
+    volumes:
+      - db_data:/data/db
+      - xbstrap_data:/data/xbstrap
+    environment:
+      - DB_PATH=/data/db/packages.db
+      - XBSTRAP_PATH=/data/xbstrap
+      - API_BASE_URL=http://localhost:8000
+      - GIT_REPO_URL
+      - GIT_BRANCH=main
+      - SMTP_SERVER
+      - SMTP_PORT=587
+      - SMTP_USERNAME
+      - SMTP_PASSWORD
+      - SENDER_EMAIL=noreply@xbdistro-version-checker.org
+      - FALLBACK_EMAIL=admin@xbdistro-version-checker.org
+      - USE_TLS=true
+      - UPSTREAM_SOURCES
+    env_file:
+      - secrets.env
+
+  watchtower:
+    image: containrrr/watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 60
+    environment:
+      - TZ=UTC
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  xbstrap_data:

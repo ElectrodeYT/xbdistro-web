@@ -1,11 +1,12 @@
 import sqlite3
+from pathlib import Path
 from typing import Optional, List, Tuple
 
 import libversion
 
 
 class PackageDatabase:
-    def __init__(self, db_path: str = "packages.db"):
+    def __init__(self, db_path: Path | str = "packages.db"):
         """Initialize database connection.
 
         Args:
@@ -425,6 +426,63 @@ class PackageDatabase:
             return packages
         except sqlite3.Error:
             return []
+
+    def get_all_package_names(self) -> List[str]:
+        """Get a list of all package names in the database.
+
+        Returns:
+            List of package names sorted alphabetically
+        """
+        try:
+            self.cursor.execute('SELECT name FROM packages ORDER BY name')
+            return [row[0] for row in self.cursor.fetchall()]
+        except sqlite3.Error:
+            return []
+
+    def delete_package(self, package_name: str) -> bool:
+        """Delete a package from the database.
+
+        Args:
+            package_name: Name of the package to delete
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            self.cursor.execute('DELETE FROM packages WHERE name = ?', (package_name,))
+            self.conn.commit()
+            return True
+        except sqlite3.Error:
+            return False
+
+    def delete_source(self, source_name: str) -> bool:
+        """Delete a source and all its associated versions from the database.
+
+        Args:
+            source_name: Name of the source to delete
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Get source ID
+            self.cursor.execute('SELECT id FROM sources WHERE name = ?', (source_name,))
+            result = self.cursor.fetchone()
+            if not result:
+                return False
+
+            source_id = result[0]
+
+            # Delete associated versions
+            self.cursor.execute('DELETE FROM versions WHERE source_id = ?', (source_id,))
+
+            # Delete the source
+            self.cursor.execute('DELETE FROM sources WHERE id = ?', (source_id,))
+
+            self.conn.commit()
+            return True
+        except sqlite3.Error:
+            return False
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()

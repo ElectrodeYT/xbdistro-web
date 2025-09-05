@@ -1,3 +1,4 @@
+import os
 from typing import List, Tuple, Optional
 from fastapi import FastAPI, HTTPException
 from xbdistro_tools.db import PackageDatabase
@@ -8,7 +9,7 @@ import libversion
 app = FastAPI(title="Source Version API")
 
 # Initialize database connection
-db = PackageDatabase(Path("packages.db"))
+db = PackageDatabase(Path(os.getenv('DB_PATH', 'packages.db')))
 
 
 @app.get("/")

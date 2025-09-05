@@ -1,6 +1,7 @@
-bootstrap-managarm/
+bootstrap-managarm
 *.egg-info
+*.git
 *.db
-.idea/
 nixos_packages.json
+.venv
 secrets.env
