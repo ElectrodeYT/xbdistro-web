@@ -1,0 +1,9 @@
+xbstrap
+y4
+brotli
+requests
+pyyaml
+libversion
+fastapi[standard]
+httpx
+jinja2

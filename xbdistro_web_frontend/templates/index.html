@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Sources - XBDistro Source Explorer{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">Sources</h1>
+
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Source List</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    Showing {{ sources|length }} of {{ total }} sources (Page {{ page }} of {{ total_pages }})
+                </p>
+
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Source Name</th>
+                                <th>Local Version</th>
+                                <th>Latest Version</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for source in sources %}
+                            <tr>
+                                <td>{{ source.name }}</td>
+                                <td>
+                                    {% if source.local_version %}
+                                    <span class="badge bg-secondary">{{ source.local_version }}</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if source.latest_version %}
+                                    <span class="badge bg-success">{{ source.latest_version }}</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="/source/{{ source.name }}" class="btn btn-sm btn-primary">
+                                        View Details
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if total_pages > 1 %}
+                <nav aria-label="Source pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if page > 1 %}
+                        <li class="page-item">
+                            <a class="page-link" href="/?page={{ page - 1 }}&limit={{ limit }}">Previous</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">Previous</span>
+                        </li>
+                        {% endif %}
+
+                        {% for p in range(1, total_pages + 1) %}
+                            {% if p == page %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ p }}</span>
+                            </li>
+                            {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+                            <li class="page-item">
+                                <a class="page-link" href="/?page={{ p }}&limit={{ limit }}">{{ p }}</a>
+                            </li>
+                            {% elif p == 4 or p == total_pages - 3 %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if page < total_pages %}
+                        <li class="page-item">
+                            <a class="page-link" href="/?page={{ page + 1 }}&limit={{ limit }}">Next</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">Next</span>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

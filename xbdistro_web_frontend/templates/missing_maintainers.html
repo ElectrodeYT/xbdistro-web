@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Packages Missing Maintainers - XBDistro Package Explorer{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">Packages Missing Maintainers</h1>
+        
+        {% if count == 0 %}
+        <div class="alert alert-success">
+            Great! No packages are missing maintainers.
+        </div>
+        {% else %}
+        <div class="alert alert-warning">
+            Found {{ count }} package{% if count != 1 %}s{% endif %} missing maintainers.
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Package Name</th>
+                        <th>Source</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for package in packages %}
+                    <tr>
+                        <td>
+                            {{ package.name }}
+                            <span class="badge bg-danger ms-2">No Maintainer</span>
+                        </td>
+                        <td>{{ package.source_name }}</td>
+                        <td>
+                            <a href="/source/{{ package.source_name }}" class="btn btn-sm btn-primary">View Source</a>
+                            <a href="/packages/{{ package.name }}" class="btn btn-sm btn-info">View Package</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        
+        <div class="mt-4">
+            <a href="/" class="btn btn-secondary">Back to Home</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,5 @@
+bootstrap-managarm/
+*.egg-info
+*.db
+.idea/
+nixos_packages.json
