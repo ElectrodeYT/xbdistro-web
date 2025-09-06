@@ -196,7 +196,7 @@ class PackageDatabaseUpdater:
     def _get_latest_version(self, source_name: str, repository_source: str) -> Optional[str]:
         """Get the latest version for a source from a specific repository source."""
         result = self.db.get_latest_version_from_source(source_name, repository_source)
-        return result[0] if result else None
+        return result.version if result else None
 
     def _extract_package_metadata(self, package: xbstrap.base.TargetPackage) -> Dict[str, str]:
         """Extract metadata from a package."""

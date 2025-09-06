@@ -1,10 +1,37 @@
 import sqlite3
-from pathlib import Path
-from typing import Optional, List, Tuple
-from functools import cmp_to_key
-
 import libversion
+from pathlib import Path
+from typing import Optional, List
+from functools import cmp_to_key
+from dataclasses import dataclass
 
+@dataclass
+class Version:
+    version: str
+    source: str
+    timestamp: str
+
+    def __iter__(self):
+        return iter((self.version, self.source, self.timestamp))
+
+    def to_dict(self):
+        return {
+            'version': self.version,
+            'source': self.source,
+            'timestamp': self.timestamp
+        }
+
+    @staticmethod
+    def from_tuple(version_tuple: tuple[str, str, str]):
+        """ Create a Version object from a tuple of (version, source, timestamp)
+        :param version_tuple: Tuple of (version, source, timestamp)
+        :return: Version object
+        """
+        return Version(version_tuple[0], version_tuple[1], version_tuple[2])
+
+def compare_two_versions(version1: Version, version2: Version) -> int:
+    """Compare two version strings."""
+    return libversion.version_compare2(version1.version, version2.version)
 
 class PackageDatabase:
     def __init__(self, db_path: Path | str = "packages.db"):
@@ -72,9 +99,11 @@ class PackageDatabase:
                             ''')
         self.conn.commit()
 
-    def compare_two_versions(self, version1: tuple[str, str, str], version2: tuple[str, str, str]) -> int:
-        """Compare two version strings."""
-        return libversion.version_compare2(version1[0], version2[0])
+    def _fetchall_versions(self):
+        return list(map(Version.from_tuple, self.cursor.fetchall()))
+
+    def _fetchone_version(self):
+        return Version.from_tuple(self.cursor.fetchone())
 
     def add_source_version(self, source_name: str, version: str, source: str) -> bool:
         """Add or update a source version.
@@ -102,14 +131,14 @@ class PackageDatabase:
         except sqlite3.Error:
             return False
 
-    def get_source_versions(self, source_name: str) -> List[Tuple[str, str, str]]:
+    def get_source_versions(self, source_name: str) -> List[Version]:
         """Get all versions for a source.
 
         Args:
             source_name: Name of the source
 
         Returns:
-            List of tuples containing (version, source, timestamp)
+            List of versions.
         """
         self.cursor.execute('''
                             SELECT v.version, v.source, v.timestamp
@@ -118,41 +147,41 @@ class PackageDatabase:
                             WHERE s.name = ?
                             ORDER BY v.timestamp DESC
                             ''', (source_name,))
-        return self.cursor.fetchall()
+        return self._fetchall_versions()
 
-    def get_latest_versions_each_source(self, source_name: str) -> List[Tuple[str, str]]:
+    def get_latest_versions_each_source(self, source_name: str) -> List[Version]:
         """Get the latest version for a source from each repository source.
 
         Args:
             source_name: Name of the source
 
         Returns:
-            List of tuples containing (repository_source, version)
-            Empty list if source not found
+            List of versions,
+            Empty list if source not found.
         """
         self.cursor.execute('''
                             WITH LatestVersions AS (SELECT v.source,
                                                            v.version,
+                                                           v.timestamp,
                                                            ROW_NUMBER() OVER (PARTITION BY v.source ORDER BY v.timestamp DESC) as rn
                                                     FROM versions v
                                                              JOIN sources s ON v.source_id = s.id
                                                     WHERE s.name = ?)
-                            SELECT source, version
+                            SELECT version, source, timestamp
                             FROM LatestVersions
                             WHERE rn = 1
                             ORDER BY source
                             ''', (source_name,))
-        return self.cursor.fetchall()
+        return self._fetchall_versions()
 
-    def get_latest_version(self, source_name: str) -> tuple[str, str] | None:
+    def get_latest_version(self, source_name: str) -> Version | None:
         """Get the latest version of a source across all repository sources.
 
         Args:
             source_name: Name of the source
 
         Returns:
-            Tuple of (repository_source, version) for the latest version,
-            or None if no versions found
+            Version or None if no versions found
         """
         # Get all latest versions from each repository source
         latest_versions = self.get_latest_versions_each_source(source_name)
@@ -160,16 +189,13 @@ class PackageDatabase:
         if not latest_versions:
             return None
 
-        # Convert to tuples of (version, source, "") to match the compare function's expected format
-        version_tuples = [(version, source, "") for source, version in latest_versions]
-
         # Sort versions using libversion comparison
-        sorted_versions = sorted(version_tuples,
-                                 key=cmp_to_key(self.compare_two_versions),
+        sorted_versions = sorted(latest_versions,
+                                 key=cmp_to_key(compare_two_versions),
                                  reverse=True)
 
         # Return the newest version and its source
-        return sorted_versions[0][1], sorted_versions[0][0]
+        return sorted_versions[0]
 
     def get_all_source_names(self) -> List[str]:
         """Get a list of all source names in the database.
@@ -180,7 +206,7 @@ class PackageDatabase:
         self.cursor.execute('SELECT name FROM sources ORDER BY name')
         return [row[0] for row in self.cursor.fetchall()]
 
-    def get_latest_version_from_source(self, source_name: str, repository_source: str) -> Optional[Tuple[str, str]]:
+    def get_latest_version_from_source(self, source_name: str, repository_source: str) -> Optional[Version]:
         """Get the latest version for a source from a specific repository source.
 
         Args:
@@ -188,10 +214,10 @@ class PackageDatabase:
             repository_source: Repository source to check (e.g., 'local', 'nixos')
 
         Returns:
-            Tuple of (version, timestamp) or None if no version found for the source/repository source combination
+            Version or None if no version found for the source/repository source combination
         """
         self.cursor.execute('''
-                            SELECT v.version, v.timestamp
+                            SELECT v.version, v.source, v.timestamp
                             FROM versions v
                                      JOIN sources s ON v.source_id = s.id
                             WHERE s.name = ?
@@ -200,34 +226,8 @@ class PackageDatabase:
                             LIMIT 1
                             ''', (source_name, repository_source))
 
-        result = self.cursor.fetchone()
+        result = self._fetchone_version()
         return result if result else None
-
-    def get_version_timestamp(self, source_name: str, version: str, repository_source: str) -> str | None:
-        """Get the timestamp for a specific version of a source.
-
-        Args:
-            source_name: Name of the source
-            version: Version string to look up
-            repository_source: Repository source to check (e.g., 'local', 'nixos')
-
-        Returns:
-            Timestamp string if found, None otherwise
-        """
-        try:
-            self.cursor.execute('''
-                                SELECT v.timestamp
-                                FROM versions v
-                                         JOIN sources s ON v.source_id = s.id
-                                WHERE s.name = ?
-                                  AND v.version = ?
-                                  AND v.source = ?
-                                ''', (source_name, version, repository_source))
-
-            result = self.cursor.fetchone()
-            return result[0] if result else None
-        except sqlite3.Error:
-            return None
 
     def add_package_metadata(self, source_name: str, name: str = None, maintainer: str = None, homepage_url: str = None,
                              license: str = None, category: str = None, summary: str = None,
@@ -454,10 +454,13 @@ class PackageDatabase:
 
             for result in results:
                 source_name = result[0]
+                local_version = self.get_latest_version_from_source(source_name, 'local')
+                latest_version = self.get_latest_version(source_name)
                 sources.append({
                     'name': source_name,
-                    'local_version': self.get_latest_version_from_source(source_name, 'local')[0],
-                    'latest_version': self.get_latest_version(source_name)[1]
+                    'local_version': local_version.version,
+                    'latest_version': latest_version.version,
+                    'is_outdated': compare_two_versions(local_version, latest_version) < 0
                 })
 
             return sources

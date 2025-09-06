@@ -1,7 +1,7 @@
 import os
 from typing import List, Tuple, Optional
 from fastapi import FastAPI, HTTPException
-from xbdistro_tools.db import PackageDatabase
+from xbdistro_tools.db import PackageDatabase, Version, compare_two_versions
 from pathlib import Path
 from functools import cmp_to_key
 import libversion
@@ -28,14 +28,25 @@ def _do_pagination(list_to_page: list, skip: int, limit: int):
     return _paginated_response(list_to_page[skip:skip + limit], skip, limit)
 
 def _get_source_info(name: str) -> dict:
-    latest_version = db.get_latest_version(name)[1]
-    local_version = db.get_latest_version_from_source(name, 'local')[0]
+    latest_version = db.get_latest_version(name)
+    local_version = db.get_latest_version_from_source(name, 'local')
     return {
         'name': name,
-        'local_version': local_version,
-        'latest_version': latest_version,
-        'is_outdated': libversion.version_compare(local_version, latest_version) < 0
+        'local_version': local_version.version,
+        'latest_version': latest_version.version,
+        'is_outdated': compare_two_versions(local_version, latest_version) < 0
     }
+
+def _version_list_to_dict(versions: List[Version]):
+    return [
+        {
+            "version": version,
+            "source": source,
+            "timestamp": timestamp
+        }
+        # This works as the Version object is iterable.
+        for version, source, timestamp in versions
+    ]
 
 @app.get("/sources/all")
 async def get_all_sources() -> List[str]:
@@ -116,7 +127,7 @@ async def get_packages_missing_maintainer_paged(
     return _do_pagination(packages, skip, limit)
 
 @app.get("/sources/{name}/info")
-async def get_source_info(name: str) -> dict():
+async def get_source_info(name: str) -> dict:
     return _get_source_info(name)
 
 @app.get("/sources/{name}/versions")
@@ -131,15 +142,7 @@ async def get_versions(name: str) -> List[dict]:
     Returns:
         List of dictionaries containing version information
     """
-    versions = db.get_source_versions(name)
-    return [
-        {
-            "version": version,
-            "source": source,
-            "timestamp": timestamp
-        }
-        for version, source, timestamp in versions
-    ]
+    return _version_list_to_dict(db.get_source_versions(name))
 
 
 @app.get("/sources/{name}/latest")
@@ -154,13 +157,7 @@ async def get_latest_version(name: str) -> dict:
     Returns:
         Dictionary containing the latest version information
     """
-    source, version = db.get_latest_version(name)
-    timestamp = db.get_version_timestamp(name, version, source)
-    return {
-        "version": version,
-        "source": source,
-        "timestamp": timestamp
-    }
+    return db.get_latest_version(name).to_dict()
 
 
 @app.get("/sources/{name}/latest-by-source")
@@ -175,44 +172,7 @@ async def get_latest_versions_by_source(name: str) -> List[dict]:
     Returns:
         List of dictionaries containing the latest version from each repository source
     """
-    versions = db.get_latest_versions_each_source(name)
-    return [
-        {
-            "source": source,
-            "version": version
-        }
-        for source, version in versions
-    ]
-
-
-@app.get("/sources/{name}/source/{source}")
-async def get_version_from_source(source: str, name) -> dict:
-    """
-    Get the latest version of a source from a specific repository source
-
-    Args:
-        source: Name of the repository source to query
-        source_name: Name of the source to query
-        package_name: Deprecated, use source_name instead
-
-    Returns:
-        Dictionary containing version information
-    """
-    result = db.get_latest_version_from_source(name, source)
-    if not result:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No version found for source '{name}' from repository source '{source}'"
-        )
-
-    version, timestamp = result
-    return {
-        "source": name,
-        "repository_source": source,
-        "version": version,
-        "timestamp": timestamp
-    }
-
+    return _version_list_to_dict(db.get_latest_versions_each_source(name))
 
 @app.get("/sources/{source_name}/packages")
 async def get_source_packages(source_name: str) -> dict:
@@ -278,10 +238,6 @@ async def search_sources(q: str) -> dict:
         }
 
     results = db.search_sources(q)
-    for result in results:
-        # Compare source version with latest version
-        comparison = libversion.version_compare(result["local_version"], result["latest_version"])
-        result["is_outdated"] = comparison < 0
     return {
         "query": q,
         "results": results,
