@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 from pathlib import Path
 import httpx
 import os
+import libversion
 
 # Create FastAPI app
 app = FastAPI(title="XBDistro Source Explorer")
@@ -43,32 +44,17 @@ async def home(request: Request, page: int = 1, limit: int = 10, client: httpx.A
     # Fetch version information for each source
     sources_with_versions = []
     for source_name in source_names:
-        source_info = {"name": source_name, "local_version": None, "latest_version": None}
-
         # Get latest version
-        latest_response = await client.get(f"/sources/{source_name}/latest")
+        latest_response = await client.get(f"/sources/{source_name}/info")
         if latest_response.status_code == 200:
-            latest_data = latest_response.json()
-            if "error" not in latest_data:
-                source_info["latest_version"] = latest_data["version"]
-
-        # Get local version
-        try:
-            local_response = await client.get(f"/sources/{source_name}/source/local")
-            if local_response.status_code == 200:
-                local_data = local_response.json()
-                source_info["local_version"] = local_data["version"]
-        except:
-            # Local version might not exist for all sources
-            pass
-
-        sources_with_versions.append(source_info)
+            source_info = latest_response.json()
+            sources_with_versions.append(source_info)
 
     # Calculate pagination values
     total_pages = (total + limit - 1) // limit
 
     return templates.TemplateResponse(
-        "index.html",
+        "index.html.j2",
         {
             "request": request,
             "sources": sources_with_versions,
@@ -110,6 +96,15 @@ async def source_detail(
 
     sources = sources_response.json()
 
+    # Add is_outdated flag to each source
+    if "error" not in latest_version:
+        latest_ver = latest_version["version"]
+        for source in sources:
+            # Compare source version with latest version
+            if source["version"] and latest_ver:
+                comparison = libversion.version_compare(source["version"], latest_ver)
+                source["is_outdated"] = comparison < 0
+
     # Get packages associated with this source
     packages_response = await client.get(f"/sources/{name}/packages")
     if packages_response.status_code != 200:
@@ -117,10 +112,8 @@ async def source_detail(
     else:
         packages = packages_response.json()
 
-    print(packages)
-
     return templates.TemplateResponse(
-        "source_detail.html",
+        "source_detail.html.j2",
         {
             "request": request,
             "source_name": name,
@@ -142,7 +135,7 @@ async def search(
     """
     if not q or len(q.strip()) == 0:
         return templates.TemplateResponse(
-            "search_results.html",
+            "search_results.html.j2",
             {
                 "request": request,
                 "query": q,
@@ -159,7 +152,7 @@ async def search(
     data = response.json()
 
     return templates.TemplateResponse(
-        "search_results.html",
+        "search_results.html.j2",
         {
             "request": request,
             "query": data["query"],
@@ -184,7 +177,7 @@ async def missing_maintainers(
     data = response.json()
 
     return templates.TemplateResponse(
-        "missing_maintainers.html",
+        "missing_maintainers.html.j2",
         {
             "request": request,
             "packages": data["packages"],
@@ -209,7 +202,7 @@ async def package_detail(
     package = response.json()
 
     return templates.TemplateResponse(
-        "package_detail.html",
+        "package_detail.html.j2",
         {
             "request": request,
             "package": package

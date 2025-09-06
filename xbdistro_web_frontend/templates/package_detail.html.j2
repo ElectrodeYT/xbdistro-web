@@ -1,0 +1,27 @@
+{% extends "base.html.j2" %}
+
+{% block title %}{{ package.name }} - XBDistro Package Explorer{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Sources</a></li>
+                <li class="breadcrumb-item"><a href="/source/{{ package.source_name }}">{{ package.source_name }}</a></li>
+                <li class="breadcrumb-item active">{{ package.name }}</li>
+            </ol>
+        </nav>
+
+        <h1 class="mb-4">{{ package.name }}</h1>
+
+        <!-- Package Metadata Card -->
+        {% include 'package_detail_element.html.j2' %}
+
+        <div class="mt-4">
+            <a href="/source/{{ package.source_name }}" class="btn btn-primary">View Source</a>
+            <a href="/" class="btn btn-secondary">Back to Home</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

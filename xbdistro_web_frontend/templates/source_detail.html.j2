@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html.j2" %}
 
 {% block title %}{{ source_name }} - XBDistro Source Explorer{% endblock %}
 
@@ -56,6 +56,9 @@
                                 <td>{{ source.source }}</td>
                                 <td>
                                     <span class="badge bg-secondary version-badge">{{ source.version }}</span>
+                                    {% if source.is_outdated %}
+                                    <i class="fas fa-exclamation-triangle outdated-warning" data-bs-toggle="tooltip" data-bs-placement="top" title="This package is out of date"></i>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}
@@ -97,71 +100,7 @@
                         <div id="collapse{{ loop.index }}" class="accordion-collapse collapse" 
                              aria-labelledby="heading{{ loop.index }}" data-bs-parent="#packagesAccordion">
                             <div class="accordion-body">
-                                <div class="row">
-                                    {% if package.maintainer %}
-                                    <div class="col-md-6">
-                                        <p><strong>Maintainer:</strong> {{ package.maintainer }}</p>
-                                    </div>
-                                    {% else %}
-                                    <div class="col-md-6">
-                                        <p><strong>Maintainer:</strong> <span class="badge bg-danger">MISSING MAINTAINER</span></p>
-                                    </div>
-                                    {% endif %}
-
-                                    {% if package.license %}
-                                    <div class="col-md-6">
-                                        <p><strong>License:</strong> {{ package.license }}</p>
-                                    </div>
-                                    {% else %}
-                                    <div class="col-md-6">
-                                        <p><strong>License:</strong> <span class="badge bg-warning text-dark">MISSING</span></p>
-                                    </div>
-                                    {% endif %}
-
-                                    {% if package.category %}
-                                    <div class="col-md-6">
-                                        <p><strong>Category:</strong> {{ package.category }}</p>
-                                    </div>
-                                    {% else %}
-                                    <div class="col-md-6">
-                                        <p><strong>Category:</strong> <span class="badge bg-warning text-dark">MISSING</span></p>
-                                    </div>
-                                    {% endif %}
-
-                                    {% if package.homepage_url %}
-                                    <div class="col-md-6">
-                                        <p><strong>Homepage:</strong> <a href="{{ package.homepage_url }}" target="_blank">{{ package.homepage_url }}</a></p>
-                                    </div>
-                                    {% else %}
-                                    <div class="col-md-6">
-                                        <p><strong>Homepage:</strong> <span class="badge bg-warning text-dark">MISSING</span></p>
-                                    </div>
-                                    {% endif %}
-                                </div>
-
-                                {% if package.summary %}
-                                <div class="mt-3">
-                                    <h6>Summary</h6>
-                                    <p>{{ package.summary }}</p>
-                                </div>
-                                {% else %}
-                                <div class="mt-3">
-                                    <h6>Summary</h6>
-                                    <p><span class="badge bg-warning text-dark">MISSING</span></p>
-                                </div>
-                                {% endif %}
-
-                                {% if package.description %}
-                                <div class="mt-3">
-                                    <h6>Description</h6>
-                                    <p>{{ package.description }}</p>
-                                </div>
-                                {% else %}
-                                <div class="mt-3">
-                                    <h6>Description</h6>
-                                    <p><span class="badge bg-warning text-dark">MISSING</span></p>
-                                </div>
-                                {% endif %}
+                                {% include 'package_detail_element.html.j2' %}
                             </div>
                         </div>
                     </div>

@@ -1,0 +1,27 @@
+<tr>
+    <td>{{ source.name }}</td>
+    <td>
+        {% if source.local_version %}
+        {% if source.is_outdated %}
+        <span class="badge bg-secondary">{{ source.local_version }}</span>
+        <i class="fas fa-exclamation-triangle outdated-warning" data-bs-toggle="tooltip" data-bs-placement="top" title="This package is out of date"></i>
+        {% else %}
+        <span class="badge bg-success">{{ source.local_version }}</span>
+        {% endif %}
+        {% else %}
+        <span class="text-muted">-</span>
+        {% endif %}
+    </td>
+    <td>
+        {% if source.latest_version %}
+        <span class="badge bg-success">{{ source.latest_version }}</span>
+        {% else %}
+        <span class="text-muted">-</span>
+        {% endif %}
+    </td>
+    <td>
+        <a href="/source/{{ source.name }}" class="btn btn-sm btn-primary">
+            View Details
+        </a>
+    </td>
+</tr>

@@ -17,6 +17,16 @@ async def root():
     return {"message": "Source Version API"}
 
 
+def _do_pagination(list_to_page: list, skip: int, limit: int):
+    total = len(list_to_page)
+    items = list_to_page[skip:skip + limit]
+    return {
+        "items": items,
+        "total": total,
+        "skip": skip,
+        "limit": limit
+    }
+
 @app.get("/sources/all")
 async def get_all_sources() -> List[str]:
     """
@@ -47,15 +57,53 @@ async def get_sources_paged(
         - skip: Current offset
         - limit: Current limit
     """
-    all_sources = db.get_all_source_names()
-    total = len(all_sources)
-    sources = all_sources[skip:skip + limit]
+    return _do_pagination(db.get_all_source_names(), skip, limit)
 
+@app.get("/meta/missing-maintainer")
+async def get_packages_missing_maintainer() -> dict:
+    """
+    Get all packages that are missing a maintainer
+
+    Returns:
+        Dictionary containing packages missing a maintainer
+    """
+    packages = db.get_packages_missing_maintainer()
     return {
-        "items": sources,
-        "total": total,
-        "skip": skip,
-        "limit": limit
+        "packages": packages,
+        "count": len(packages)
+    }
+
+@app.get("/meta/missing-maintainer/paged")
+async def get_packages_missing_maintainer_paged(
+        skip: int = 0,
+        limit: int = 10
+) -> dict:
+    """
+    Get paginated list of packages that are missing a maintainer
+
+    Args:
+        skip: Number of items to skip (offset)
+        limit: Maximum number of items to return
+
+    Returns:
+        Dictionary containing:
+        - items: List of packages missing a maintainer
+        - total: Total number of packages
+        - skip: Current offset
+        - limit: Current limit
+    """
+    packages = db.get_packages_missing_maintainer()
+    return _do_pagination(packages, skip, limit)
+
+@app.get("/sources/{name}/info")
+async def get_source_info(name: str) -> dict():
+    latest_version = db.get_latest_version(name)[1]
+    local_version = db.get_latest_version_from_source(name, 'local')[0]
+    return {
+        'name': name,
+        'local_version': local_version,
+        'latest_version': latest_version,
+        'is_outdated': libversion.version_compare(local_version, latest_version) < 0
     }
 
 @app.get("/sources/{name}/versions")
@@ -93,14 +141,8 @@ async def get_latest_version(name: str) -> dict:
     Returns:
         Dictionary containing the latest version information
     """
-    versions = db.get_source_versions(name)
-    if not versions:
-        return {"error": "Source not found"}
-
-    print(versions)
-    sorted_versions = sorted(versions, key=cmp_to_key(db.compare_two_versions), reverse=True)
-    print(sorted_versions)
-    version, source, timestamp = sorted_versions[0]
+    source, version = db.get_latest_version(name)
+    timestamp = db.get_version_timestamp(name, version, source)
     return {
         "version": version,
         "source": source,
@@ -223,24 +265,13 @@ async def search_sources(q: str) -> dict:
         }
 
     results = db.search_sources(q)
+    for result in results:
+        # Compare source version with latest version
+        comparison = libversion.version_compare(result["local_version"], result["latest_version"])
+        result["is_outdated"] = comparison < 0
     return {
         "query": q,
         "results": results,
         "count": len(results)
     }
 
-
-@app.get("/meta/missing-maintainer")
-async def get_packages_missing_maintainer() -> dict:
-    print('A')
-    """
-    Get all packages that are missing a maintainer
-
-    Returns:
-        Dictionary containing packages missing a maintainer
-    """
-    packages = db.get_packages_missing_maintainer()
-    return {
-        "packages": packages,
-        "count": len(packages)
-    }

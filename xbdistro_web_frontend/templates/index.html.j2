@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html.j2" %}
 
 {% block title %}Sources - XBDistro Source Explorer{% endblock %}
 
@@ -28,28 +28,7 @@
                         </thead>
                         <tbody>
                             {% for source in sources %}
-                            <tr>
-                                <td>{{ source.name }}</td>
-                                <td>
-                                    {% if source.local_version %}
-                                    <span class="badge bg-secondary">{{ source.local_version }}</span>
-                                    {% else %}
-                                    <span class="text-muted">-</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if source.latest_version %}
-                                    <span class="badge bg-success">{{ source.latest_version }}</span>
-                                    {% else %}
-                                    <span class="text-muted">-</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <a href="/source/{{ source.name }}" class="btn btn-sm btn-primary">
-                                        View Details
-                                    </a>
-                                </td>
-                            </tr>
+                                {% include 'source_search_list_entry.html.j2' %}
                             {% endfor %}
                         </tbody>
                     </table>

@@ -1,6 +1,7 @@
 import sqlite3
 from pathlib import Path
 from typing import Optional, List, Tuple
+from functools import cmp_to_key
 
 import libversion
 
@@ -18,41 +19,52 @@ class PackageDatabase:
         self._connect()
         self._create_tables()
 
+    def __enter__(self):
+        return self
+
     def _connect(self):
         """Establish database connection."""
         self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
 
+    def close(self):
+        """Close database connection."""
+        if self.conn:
+            self.conn.close()
+
     def _create_tables(self):
         """Create necessary database tables if they don't exist."""
         # Create sources table if it doesn't exist
         self.cursor.execute('''
-                            CREATE TABLE IF NOT EXISTS sources (
-                                id INTEGER PRIMARY KEY,
+                            CREATE TABLE IF NOT EXISTS sources
+                            (
+                                id   INTEGER PRIMARY KEY,
                                 name TEXT UNIQUE NOT NULL
                             )
                             ''')
         self.cursor.execute('''
-                            CREATE TABLE IF NOT EXISTS packages (
-                                name TEXT PRIMARY KEY NOT NULL,
-                                source_id INTEGER NOT NULL,
-                                maintainer TEXT,
+                            CREATE TABLE IF NOT EXISTS packages
+                            (
+                                name         TEXT PRIMARY KEY NOT NULL,
+                                source_id    INTEGER          NOT NULL,
+                                maintainer   TEXT,
                                 homepage_url TEXT,
-                                license TEXT,
-                                category TEXT,
-                                summary TEXT,
-                                description TEXT,
+                                license      TEXT,
+                                category     TEXT,
+                                summary      TEXT,
+                                description  TEXT,
                                 FOREIGN KEY (source_id) REFERENCES sources (id)
                             )
                             ''')
 
         # Update versions table to reference sources instead of packages
         self.cursor.execute('''
-                            CREATE TABLE IF NOT EXISTS versions (
-                                id INTEGER PRIMARY KEY,
+                            CREATE TABLE IF NOT EXISTS versions
+                            (
+                                id        INTEGER PRIMARY KEY,
                                 source_id INTEGER,
-                                version TEXT NOT NULL,
-                                source TEXT NOT NULL,
+                                version   TEXT NOT NULL,
+                                source    TEXT NOT NULL,
                                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                                 FOREIGN KEY (source_id) REFERENCES sources (id),
                                 UNIQUE (source_id, version, source)
@@ -132,6 +144,33 @@ class PackageDatabase:
                             ''', (source_name,))
         return self.cursor.fetchall()
 
+    def get_latest_version(self, source_name: str) -> tuple[str, str] | None:
+        """Get the latest version of a source across all repository sources.
+
+        Args:
+            source_name: Name of the source
+
+        Returns:
+            Tuple of (repository_source, version) for the latest version,
+            or None if no versions found
+        """
+        # Get all latest versions from each repository source
+        latest_versions = self.get_latest_versions_each_source(source_name)
+
+        if not latest_versions:
+            return None
+
+        # Convert to tuples of (version, source, "") to match the compare function's expected format
+        version_tuples = [(version, source, "") for source, version in latest_versions]
+
+        # Sort versions using libversion comparison
+        sorted_versions = sorted(version_tuples,
+                                 key=cmp_to_key(self.compare_two_versions),
+                                 reverse=True)
+
+        # Return the newest version and its source
+        return sorted_versions[0][1], sorted_versions[0][0]
+
     def get_all_source_names(self) -> List[str]:
         """Get a list of all source names in the database.
 
@@ -141,7 +180,7 @@ class PackageDatabase:
         self.cursor.execute('SELECT name FROM sources ORDER BY name')
         return [row[0] for row in self.cursor.fetchall()]
 
-    def get_latest_version_from_source(self, source_name: str, repository_source: str) -> Optional[str]:
+    def get_latest_version_from_source(self, source_name: str, repository_source: str) -> Optional[Tuple[str, str]]:
         """Get the latest version for a source from a specific repository source.
 
         Args:
@@ -149,7 +188,7 @@ class PackageDatabase:
             repository_source: Repository source to check (e.g., 'local', 'nixos')
 
         Returns:
-            The latest version string or None if no version found for the source/repository source combination
+            Tuple of (version, timestamp) or None if no version found for the source/repository source combination
         """
         self.cursor.execute('''
                             SELECT v.version, v.timestamp
@@ -157,22 +196,42 @@ class PackageDatabase:
                                      JOIN sources s ON v.source_id = s.id
                             WHERE s.name = ?
                               AND v.source = ?
-                            ORDER BY v.timestamp DESC LIMIT 1
+                            ORDER BY v.timestamp DESC
+                            LIMIT 1
                             ''', (source_name, repository_source))
 
         result = self.cursor.fetchone()
         return result if result else None
 
-    def close(self):
-        """Close database connection."""
-        if self.conn:
-            self.conn.close()
+    def get_version_timestamp(self, source_name: str, version: str, repository_source: str) -> str | None:
+        """Get the timestamp for a specific version of a source.
 
-    def __enter__(self):
-        return self
+        Args:
+            source_name: Name of the source
+            version: Version string to look up
+            repository_source: Repository source to check (e.g., 'local', 'nixos')
+
+        Returns:
+            Timestamp string if found, None otherwise
+        """
+        try:
+            self.cursor.execute('''
+                                SELECT v.timestamp
+                                FROM versions v
+                                         JOIN sources s ON v.source_id = s.id
+                                WHERE s.name = ?
+                                  AND v.version = ?
+                                  AND v.source = ?
+                                ''', (source_name, version, repository_source))
+
+            result = self.cursor.fetchone()
+            return result[0] if result else None
+        except sqlite3.Error:
+            return None
 
     def add_package_metadata(self, source_name: str, name: str = None, maintainer: str = None, homepage_url: str = None,
-                         license: str = None, category: str = None, summary: str = None, description: str = None) -> bool:
+                             license: str = None, category: str = None, summary: str = None,
+                             description: str = None) -> bool:
         """Add or update package metadata.
 
         Args:
@@ -207,16 +266,25 @@ class PackageDatabase:
             if result:
                 # Update existing package metadata
                 self.cursor.execute('''
-                    UPDATE packages
-                    SET source_id = ?, maintainer = ?, homepage_url = ?, license = ?, category = ?, summary = ?, description = ?
-                    WHERE name = ?
-                ''', (source_id, maintainer, homepage_url, license, category, summary, description, name))
+                                    UPDATE packages
+                                    SET source_id    = ?,
+                                        maintainer   = ?,
+                                        homepage_url = ?,
+                                        license      = ?,
+                                        category     = ?,
+                                        summary      = ?,
+                                        description  = ?
+                                    WHERE name = ?
+                                    ''', (source_id, maintainer, homepage_url, license, category, summary, description,
+                                          name))
             else:
                 # Insert new package metadata
                 self.cursor.execute('''
-                    INSERT INTO packages (name, source_id, maintainer, homepage_url, license, category, summary, description)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (name, source_id, maintainer, homepage_url, license, category, summary, description))
+                                    INSERT INTO packages (name, source_id, maintainer, homepage_url, license, category,
+                                                          summary, description)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                    ''', (name, source_id, maintainer, homepage_url, license, category, summary,
+                                          description))
 
             self.conn.commit()
             return True
@@ -234,11 +302,17 @@ class PackageDatabase:
         """
         try:
             self.cursor.execute('''
-                SELECT p.name, p.maintainer, p.homepage_url, p.license, p.category, p.summary, p.description
-                FROM packages p
-                JOIN sources s ON p.source_id = s.id
-                WHERE s.name = ?
-            ''', (source_name,))
+                                SELECT p.name,
+                                       p.maintainer,
+                                       p.homepage_url,
+                                       p.license,
+                                       p.category,
+                                       p.summary,
+                                       p.description
+                                FROM packages p
+                                         JOIN sources s ON p.source_id = s.id
+                                WHERE s.name = ?
+                                ''', (source_name,))
 
             result = self.cursor.fetchone()
             if not result:
@@ -326,11 +400,18 @@ class PackageDatabase:
         """
         try:
             self.cursor.execute('''
-                SELECT p.name, p.maintainer, p.homepage_url, p.license, p.category, p.summary, p.description, s.name
-                FROM packages p
-                JOIN sources s ON p.source_id = s.id
-                WHERE p.name = ?
-            ''', (package_name,))
+                                SELECT p.name,
+                                       p.maintainer,
+                                       p.homepage_url,
+                                       p.license,
+                                       p.category,
+                                       p.summary,
+                                       p.description,
+                                       s.name
+                                FROM packages p
+                                         JOIN sources s ON p.source_id = s.id
+                                WHERE p.name = ?
+                                ''', (package_name,))
 
             result = self.cursor.fetchone()
             if not result:
@@ -362,37 +443,21 @@ class PackageDatabase:
             # Use LIKE for partial matching with wildcards on both sides
             search_pattern = f"%{search_term}%"
             self.cursor.execute('''
-                SELECT s.name
-                FROM sources s
-                WHERE s.name LIKE ?
-                ORDER BY s.name
-            ''', (search_pattern,))
+                                SELECT s.name
+                                FROM sources s
+                                WHERE s.name LIKE ?
+                                ORDER BY s.name
+                                ''', (search_pattern,))
 
             results = self.cursor.fetchall()
             sources = []
 
             for result in results:
                 source_name = result[0]
-                # Get latest version for each source
-                latest_version = None
-                try:
-                    self.cursor.execute('''
-                        SELECT v.version
-                        FROM versions v
-                        JOIN sources s ON v.source_id = s.id
-                        WHERE s.name = ?
-                        ORDER BY v.timestamp DESC
-                        LIMIT 1
-                    ''', (source_name,))
-                    version_result = self.cursor.fetchone()
-                    if version_result:
-                        latest_version = version_result[0]
-                except sqlite3.Error:
-                    pass
-
                 sources.append({
                     'name': source_name,
-                    'latest_version': latest_version
+                    'local_version': self.get_latest_version_from_source(source_name, 'local')[0],
+                    'latest_version': self.get_latest_version(source_name)[1]
                 })
 
             return sources
@@ -407,12 +472,13 @@ class PackageDatabase:
         """
         try:
             self.cursor.execute('''
-                SELECT p.name, s.name as source_name
-                FROM packages p
-                JOIN sources s ON p.source_id = s.id
-                WHERE p.maintainer IS NULL OR p.maintainer = ''
-                ORDER BY p.name
-            ''')
+                                SELECT p.name, s.name as source_name
+                                FROM packages p
+                                         JOIN sources s ON p.source_id = s.id
+                                WHERE p.maintainer IS NULL
+                                   OR p.maintainer = ''
+                                ORDER BY p.name
+                                ''')
 
             results = self.cursor.fetchall()
             packages = []

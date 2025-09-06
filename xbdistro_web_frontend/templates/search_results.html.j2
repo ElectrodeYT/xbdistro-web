@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html.j2" %}
 
 {% block title %}Search Results - XBDistro Package Explorer{% endblock %}
 
@@ -27,19 +27,7 @@
                 </thead>
                 <tbody>
                     {% for source in results %}
-                    <tr>
-                        <td>{{ source.name }}</td>
-                        <td>
-                            {% if source.latest_version %}
-                            <span class="badge bg-secondary version-badge">{{ source.latest_version }}</span>
-                            {% else %}
-                            <span class="badge bg-warning text-dark">No version</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <a href="/source/{{ source.name }}" class="btn btn-sm btn-primary">View Details</a>
-                        </td>
-                    </tr>
+                        {% include 'source_search_list_entry.html.j2' %}
                     {% endfor %}
                 </tbody>
             </table>
