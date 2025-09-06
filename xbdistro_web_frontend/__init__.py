@@ -33,22 +33,13 @@ async def home(request: Request, page: int = 1, limit: int = 10, client: httpx.A
     skip = (page - 1) * limit
 
     # Get paginated sources from API
-    response = await client.get(f"/sources/paged?skip={skip}&limit={limit}")
+    response = await client.get(f"/meta/sources/paged-info?skip={skip}&limit={limit}")
     if response.status_code != 200:
         raise HTTPException(status_code=response.status_code, detail="Failed to fetch sources")
 
     data = response.json()
-    source_names = data["items"]
+    sources_with_versions = data["items"]
     total = data["total"]
-
-    # Fetch version information for each source
-    sources_with_versions = []
-    for source_name in source_names:
-        # Get latest version
-        latest_response = await client.get(f"/sources/{source_name}/info")
-        if latest_response.status_code == 200:
-            source_info = latest_response.json()
-            sources_with_versions.append(source_info)
 
     # Calculate pagination values
     total_pages = (total + limit - 1) // limit

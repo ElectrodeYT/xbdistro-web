@@ -16,15 +16,25 @@ db = PackageDatabase(Path(os.getenv('DB_PATH', 'packages.db')))
 async def root():
     return {"message": "Source Version API"}
 
-
-def _do_pagination(list_to_page: list, skip: int, limit: int):
-    total = len(list_to_page)
-    items = list_to_page[skip:skip + limit]
+def _paginated_response(list, skip, limit):
     return {
-        "items": items,
-        "total": total,
+        "items": list,
+        "total": len(list),
         "skip": skip,
         "limit": limit
+    }
+
+def _do_pagination(list_to_page: list, skip: int, limit: int):
+    return _paginated_response(list_to_page[skip:skip + limit], skip, limit)
+
+def _get_source_info(name: str) -> dict:
+    latest_version = db.get_latest_version(name)[1]
+    local_version = db.get_latest_version_from_source(name, 'local')[0]
+    return {
+        'name': name,
+        'local_version': local_version,
+        'latest_version': latest_version,
+        'is_outdated': libversion.version_compare(local_version, latest_version) < 0
     }
 
 @app.get("/sources/all")
@@ -58,6 +68,15 @@ async def get_sources_paged(
         - limit: Current limit
     """
     return _do_pagination(db.get_all_source_names(), skip, limit)
+
+@app.get("/meta/sources/paged-info")
+async def get_sources_info_paged(
+    skip: int = 0,
+    limit: int = 10
+) -> dict:
+    sources_to_get = db.get_all_source_names()[skip:skip + limit]
+    sources_info = list(map(_get_source_info, sources_to_get))
+    return _paginated_response(sources_info, skip, limit)
 
 @app.get("/meta/missing-maintainer")
 async def get_packages_missing_maintainer() -> dict:
@@ -97,14 +116,7 @@ async def get_packages_missing_maintainer_paged(
 
 @app.get("/sources/{name}/info")
 async def get_source_info(name: str) -> dict():
-    latest_version = db.get_latest_version(name)[1]
-    local_version = db.get_latest_version_from_source(name, 'local')[0]
-    return {
-        'name': name,
-        'local_version': local_version,
-        'latest_version': latest_version,
-        'is_outdated': libversion.version_compare(local_version, latest_version) < 0
-    }
+    return _get_source_info(name)
 
 @app.get("/sources/{name}/versions")
 async def get_versions(name: str) -> List[dict]:
