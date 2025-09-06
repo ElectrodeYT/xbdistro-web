@@ -20,21 +20,52 @@
                 <h5 class="card-title mb-0">Latest Version</h5>
             </div>
             <div class="card-body">
-                {% if latest_version.error %}
+                {% if info.latest_version.error %}
                 <div class="alert alert-warning">
-                    {{ latest_version.error }}
+                    {{ info.latest_version.error }}
                 </div>
                 {% else %}
                 <div class="row">
                     <div class="col-md-6">
-                        <h3 class="mb-3">{{ latest_version.version }}</h3>
-                        <p><strong>Source:</strong> <span class="badge bg-info">{{ latest_version.source }}</span></p>
-                        <p><strong>Timestamp:</strong> {{ latest_version.timestamp }}</p>
+                        <h3 class="mb-3">{{ info.latest_version.version }}</h3>
+                        <p><strong>Source:</strong> <span class="badge bg-info">{{ info.latest_version.source }}</span></p>
+                        <p><strong>Timestamp:</strong> {{ info.latest_version.timestamp }}</p>
                     </div>
                 </div>
                 {% endif %}
             </div>
         </div>
+
+        {% if info.latest_version.source != "local" %}
+        <!-- Local Version Card -->
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="card-title mb-0">Local Version</h5>
+            </div>
+            <div class="card-body">
+                {% if info.local_version %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h3 class="mb-3">
+                                {{ info.local_version.version }}
+                                {% if info.is_outdated %}
+                                    <i class="fas fa-exclamation-triangle text-warning" data-bs-toggle="tooltip"
+                                       data-bs-placement="top" title="This version is outdated"></i>
+                                {% endif %}
+                            </h3>
+                            <p><strong>Source:</strong> <span
+                                    class="badge bg-info">{{ info.local_version.source }}</span></p>
+                            <p><strong>Timestamp:</strong> {{ info.local_version.timestamp }}</p>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        No local version available.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Latest Versions by Source -->
         <div class="card mb-4">

@@ -1,9 +1,10 @@
 import sqlite3
 import libversion
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Literal
 from functools import cmp_to_key
 from dataclasses import dataclass
+
 
 @dataclass
 class Version:
@@ -131,22 +132,29 @@ class PackageDatabase:
         except sqlite3.Error:
             return False
 
-    def get_source_versions(self, source_name: str) -> List[Version]:
-        """Get all versions for a source.
-
-        Args:
-            source_name: Name of the source
-
-        Returns:
-            List of versions.
+    def get_source_versions(self, source_name: str, order: Literal['time', 'source_time'] = 'time') -> List[Version]:
         """
+        Retrieve all versions of a source filtered and ordered based on the provided criteria.
+
+        Method returns a list of `Version` objects associated with the specified source
+        name. The result can be ordered by timestamp or by source id followed by
+        timestamp, as chosen by the `order` parameter.
+
+        :param source_name: Name of the source whose versions are to be retrieved.
+        :param order: Criteria for ordering the results. Can be either 'time' for
+            ordering by timestamp or 'source_time' for ordering by source_id and
+            then timestamp. Defaults to 'time'.
+        :return: A list of `Version` objects containing version details for the specified source.
+        :rtype: List[Version]
+        """
+        order_by = 'v.timestamp DESC' if order == 'time' else 'v.source_id, v.timestamp DESC'
         self.cursor.execute('''
                             SELECT v.version, v.source, v.timestamp
                             FROM versions v
                                      JOIN sources s ON v.source_id = s.id
                             WHERE s.name = ?
-                            ORDER BY v.timestamp DESC
-                            ''', (source_name,))
+                            ORDER BY ?
+                            ''', (source_name, order_by))
         return self._fetchall_versions()
 
     def get_latest_versions_each_source(self, source_name: str) -> List[Version]:
@@ -458,8 +466,8 @@ class PackageDatabase:
                 latest_version = self.get_latest_version(source_name)
                 sources.append({
                     'name': source_name,
-                    'local_version': local_version.version,
-                    'latest_version': latest_version.version,
+                    'local_version': local_version,
+                    'latest_version': latest_version,
                     'is_outdated': compare_two_versions(local_version, latest_version) < 0
                 })
 

@@ -1,6 +1,8 @@
 import os
 from typing import List, Tuple, Optional
 from fastapi import FastAPI, HTTPException
+from starlette.responses import RedirectResponse
+
 from xbdistro_tools.db import PackageDatabase, Version, compare_two_versions
 from pathlib import Path
 from functools import cmp_to_key
@@ -14,7 +16,7 @@ db = PackageDatabase(Path(os.getenv('DB_PATH', 'packages.db')))
 
 @app.get("/")
 async def root():
-    return {"message": "Source Version API"}
+    return RedirectResponse('docs')
 
 def _paginated_response(list, skip, limit, total):
     return {
@@ -32,12 +34,12 @@ def _get_source_info(name: str) -> dict:
     local_version = db.get_latest_version_from_source(name, 'local')
     return {
         'name': name,
-        'local_version': local_version.version,
-        'latest_version': latest_version.version,
+        'local_version': local_version,
+        'latest_version': latest_version,
         'is_outdated': compare_two_versions(local_version, latest_version) < 0
     }
 
-def _version_list_to_dict(versions: List[Version]):
+def _version_list_to_dict(versions: List[Version]) -> List[dict]:
     return [
         {
             "version": version,
@@ -48,37 +50,6 @@ def _version_list_to_dict(versions: List[Version]):
         for version, source, timestamp in versions
     ]
 
-@app.get("/sources/all")
-async def get_all_sources() -> List[str]:
-    """
-    Get all sources known to the database
-
-    Returns:
-        List of source names sorted alphabetically
-    """
-    return db.get_all_source_names()
-
-
-@app.get("/sources/paged")
-async def get_sources_paged(
-        skip: int = 0,
-        limit: int = 10
-) -> dict:
-    """
-    Get sources known to the database with pagination
-
-    Args:
-        skip: Number of items to skip (offset)
-        limit: Maximum number of items to return
-
-    Returns:
-        Dictionary containing:
-        - items: List of source names sorted alphabetically
-        - total: Total number of sources
-        - skip: Current offset
-        - limit: Current limit
-    """
-    return _do_pagination(db.get_all_source_names(), skip, limit)
 
 @app.get("/meta/sources/paged-info")
 async def get_sources_info_paged(
@@ -130,72 +101,15 @@ async def get_packages_missing_maintainer_paged(
 async def get_source_info(name: str) -> dict:
     return _get_source_info(name)
 
-@app.get("/sources/{name}/versions")
-async def get_versions(name: str) -> List[dict]:
-    """
-    Get all versions for a specific source
-
-    Args:
-        source_name: Name of the source to query
-        package_name: Deprecated, use source_name instead
-
-    Returns:
-        List of dictionaries containing version information
-    """
-    return _version_list_to_dict(db.get_source_versions(name))
-
-
-@app.get("/sources/{name}/latest")
-async def get_latest_version(name: str) -> dict:
-    """
-    Get the latest version for a specific source
-
-    Args:
-        source_name: Name of the source to query
-        package_name: Deprecated, use source_name instead
-
-    Returns:
-        Dictionary containing the latest version information
-    """
-    return db.get_latest_version(name).to_dict()
-
-
-@app.get("/sources/{name}/latest-by-source")
-async def get_latest_versions_by_source(name: str) -> List[dict]:
-    """
-    Get the latest version for a source from each repository source
-
-    Args:
-        source_name: Name of the source to query
-        package_name: Deprecated, use source_name instead
-
-    Returns:
-        List of dictionaries containing the latest version from each repository source
-    """
-    return _version_list_to_dict(db.get_latest_versions_each_source(name))
-
-@app.get("/sources/{source_name}/packages")
-async def get_source_packages(source_name: str) -> dict:
-    """
-    Get all packages and their metadata associated with a source
-
-    Args:
-        source_name: Name of the source to get packages for
-
-    Returns:
-        Dictionary containing source name and list of packages with their metadata
-    """
-    packages = db.get_packages_by_source_name(source_name)
-    if not packages:
-        return {
-            "source": source_name,
-            "packages": []
-        }
-
-    return {
-        "source": source_name,
-        "packages": packages
+@app.get("/sources/{name}/extended-info")
+async def get_source_extended_info(name: str) -> dict:
+    ret = {
+        'info': _get_source_info(name),
+        'all_versions': _version_list_to_dict(db.get_source_versions(name)),
+        'latest_versions': _version_list_to_dict(db.get_latest_versions_each_source(name)),
+        'packages': db.get_packages_by_source_name(name)
     }
+    return ret
 
 
 @app.get("/packages/{package_name}")

@@ -66,52 +66,26 @@ async def source_detail(
     Source detail page showing version information and associated packages
     """
 
-    # Get latest version
-    latest_response = await client.get(f"/sources/{name}/latest")
-    if latest_response.status_code != 200:
-        raise HTTPException(status_code=latest_response.status_code, detail="Failed to fetch source details")
+    # Get extended source info
+    extended_response = await client.get(f"/sources/{name}/extended-info")
+    if extended_response.status_code != 200:
+        raise HTTPException(status_code=extended_response.status_code, detail="Failed to fetch source details")
+    extended_info = extended_response.json()
 
-    latest_version = latest_response.json()
-
-    # Get all versions
-    versions_response = await client.get(f"/sources/{name}/versions")
-    if versions_response.status_code != 200:
-        raise HTTPException(status_code=versions_response.status_code, detail="Failed to fetch source versions")
-
-    versions = versions_response.json()
-
-    # Get latest versions by source
-    sources_response = await client.get(f"/sources/{name}/latest-by-source")
-    if sources_response.status_code != 200:
-        raise HTTPException(status_code=sources_response.status_code, detail="Failed to fetch source repository sources")
-
-    sources = sources_response.json()
-
-    # Add is_outdated flag to each source
-    if "error" not in latest_version:
-        latest_ver = latest_version["version"]
-        for source in sources:
-            # Compare source version with latest version
-            if source["version"] and latest_ver:
-                comparison = libversion.version_compare(source["version"], latest_ver)
-                source["is_outdated"] = comparison < 0
-
-    # Get packages associated with this source
-    packages_response = await client.get(f"/sources/{name}/packages")
-    if packages_response.status_code != 200:
-        packages = {"source": name, "packages": []}
-    else:
-        packages = packages_response.json()
+    # Add a is_outdated flag to all latest versions
+    for version in extended_info["latest_versions"]:
+        version["is_outdated"] = libversion.version_compare(version["version"],
+                                                            extended_info["info"]["latest_version"]["version"]) < 0
 
     return templates.TemplateResponse(
         "source_detail.html.j2",
         {
             "request": request,
             "source_name": name,
-            "latest_version": latest_version,
-            "versions": versions,
-            "sources": sources,
-            "packages": packages["packages"]
+            "info": extended_info["info"],
+            "versions": extended_info["all_versions"],
+            "sources": extended_info["latest_versions"],
+            "packages": extended_info["packages"]
         }
     )
 
