@@ -55,7 +55,7 @@ COPY . .
 RUN pip install --no-cache-dir .
 
 # Create a cron job file
-RUN echo "0 0 * * * /usr/local/bin/python /app/xbdistro_tools/cron.py --db-path $DB_PATH --xbstrap-path $XBSTRAP_PATH --update-git --git-remote origin --git-branch \$GIT_BRANCH \${UPSTREAM_SOURCES:+--upstream \$UPSTREAM_SOURCES} \${SMTP_SERVER:+--email-notifications --smtp-server \$SMTP_SERVER --smtp-port \$SMTP_PORT --smtp-username \$SMTP_USERNAME --smtp-password \$SMTP_PASSWORD --sender-email \$SENDER_EMAIL --fallback-email \$FALLBACK_EMAIL --use-tls \$USE_TLS} >> /var/log/cron.log 2>&1" > /etc/cron.d/xbdistro-cron
+RUN echo "0 0 * * * /usr/local/bin/python /app/xbdistro_tools/cron.py --db-path $DB_PATH --xbstrap-path $XBSTRAP_PATH --update-git --git-remote origin --git-branch $GIT_BRANCH ${UPSTREAM_SOURCES:+--upstream $UPSTREAM_SOURCES} ${SMTP_SERVER:+--email-notifications --smtp-server $SMTP_SERVER --smtp-port $SMTP_PORT --smtp-username $SMTP_USERNAME --smtp-password $SMTP_PASSWORD --sender-email $SENDER_EMAIL --fallback-email $FALLBACK_EMAIL --use-tls $USE_TLS} >> /var/log/cron.log 2>&1" > /etc/cron.d/xbdistro-cron
 RUN chmod 0644 /etc/cron.d/xbdistro-cron
 RUN crontab /etc/cron.d/xbdistro-cron
 
@@ -98,9 +98,9 @@ RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
 # Clone git repository if GIT_REPO_URL is provided and directory does not exist\n\
-if [ -n "\$GIT_REPO_URL" ] && [ ! -d "$XBSTRAP_PATH" ]; then\n\
-    echo "Cloning repository from \$GIT_REPO_URL to $XBSTRAP_PATH"\n\
-    git clone --branch "\$GIT_BRANCH" "\$GIT_REPO_URL" "$XBSTRAP_PATH"\n\
+if [ -n "$GIT_REPO_URL" ] && [ ! -d "$XBSTRAP_PATH" ]; then\n\
+    echo "Cloning repository from $GIT_REPO_URL to $XBSTRAP_PATH"\n\
+    git clone --branch "$GIT_BRANCH" "$GIT_REPO_URL" "$XBSTRAP_PATH"\n\
     echo "Repository cloned successfully."\n\
 fi\n\
 \n\
