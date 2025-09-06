@@ -16,10 +16,10 @@ db = PackageDatabase(Path(os.getenv('DB_PATH', 'packages.db')))
 async def root():
     return {"message": "Source Version API"}
 
-def _paginated_response(list, skip, limit):
+def _paginated_response(list, skip, limit, total):
     return {
         "items": list,
-        "total": len(list),
+        "total": total,
         "skip": skip,
         "limit": limit
     }
@@ -74,9 +74,10 @@ async def get_sources_info_paged(
     skip: int = 0,
     limit: int = 10
 ) -> dict:
-    sources_to_get = db.get_all_source_names()[skip:skip + limit]
+    all_sources_names = db.get_all_source_names()
+    sources_to_get = all_sources_names[skip:skip + limit]
     sources_info = list(map(_get_source_info, sources_to_get))
-    return _paginated_response(sources_info, skip, limit)
+    return _paginated_response(sources_info, skip, limit, len(all_sources_names))
 
 @app.get("/meta/missing-maintainer")
 async def get_packages_missing_maintainer() -> dict:
