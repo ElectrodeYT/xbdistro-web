@@ -1,6 +1,6 @@
 services:
   xbdistro:
-    build: .
+    image: ghcr.io/electrodeyt/xbdistro-web:master
     ports:
       - "8000:8000"  # Backend
       - "8001:8001"  # Frontend

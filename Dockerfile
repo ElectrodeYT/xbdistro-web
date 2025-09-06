@@ -98,9 +98,9 @@ RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
 # Clone git repository if GIT_REPO_URL is provided and directory does not exist\n\
-if [ -n "$GIT_REPO_URL" ] && [ ! -d "$XBSTRAP_PATH" ]; then\n\
-    echo "Cloning repository from $GIT_REPO_URL..."\n\
-    git clone --branch "$GIT_BRANCH" "$GIT_REPO_URL" "$XBSTRAP_PATH"\n\
+if [ -n "\$GIT_REPO_URL" ] && [ ! -d "$XBSTRAP_PATH" ]; then\n\
+    echo "Cloning repository from \$GIT_REPO_URL to $XBSTRAP_PATH"\n\
+    git clone --branch "\$GIT_BRANCH" "\$GIT_REPO_URL" "$XBSTRAP_PATH"\n\
     echo "Repository cloned successfully."\n\
 fi\n\
 \n\
